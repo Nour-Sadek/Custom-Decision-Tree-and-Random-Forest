@@ -15,20 +15,23 @@ class DecisionTree:
 
     def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
                  min_samples_leaf: int = 1, max_features: int = None) -> None:
+        # check of min_samples_split is greater than min_samples_leaf
         self._root = None
         self._max_depth = max_depth
         self._min_samples_split = min_samples_split
         self._min_samples_leaf = min_samples_leaf
         self._max_features = max_features
 
-    def sorted_feature_indices(self, X: np.ndarray, feature_names: np.ndarray) -> dict[str, np.ndarray]:
+    @classmethod
+    def sorted_feature_indices(cls, X: np.ndarray, feature_names: np.ndarray) -> dict[str, np.ndarray]:
         """Return the array of indices that would sort <feature>."""
         indices_of_sorted_features_dict = {}
         for feature_name, features_column in zip(feature_names, X.T):
             indices_of_sorted_features_dict[feature_name] = np.argsort(features_column)
         return indices_of_sorted_features_dict
 
-    def sorted_feature_boundaries(self, feature: np.ndarray) -> np.ndarray:
+    @classmethod
+    def sorted_feature_boundaries(cls, feature: np.ndarray) -> np.ndarray:
         """Given a sorted 1D array <feature>, return the indices of the boundaries between values that are changing. If
         all the values in the <feature> array are the same, return None.
 
@@ -43,7 +46,7 @@ class DecisionTree:
         boundaries = np.where(feature[:-1] != feature[1:])[0]
         return boundaries + 0.5
 
-    def decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> DecisionTreeNode:
         """<temp_node> is a leaf node. Decide whether it stays as a leaf node or it branches out."""
         pass
@@ -71,8 +74,19 @@ class ClassificationTree(DecisionTree):
     def create_node(self, depth: int, samples: np.ndarray) -> ClassificationNode:
         return ClassificationNode(depth, samples)
 
-    def decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> ClassificationNode:
+
+        gini_impurity, distribution = ClassificationNode.determine_gini_impurity_and_distribution(y, num_classes)
+        output_node = ClassificationNode(temp_node.depth, temp_node.samples)
+        output_node.set_properties(gini_impurity, distribution)
+
+        # Check if further splits can be made based on <self._max_depth>, <self._min_samples_split> or
+        # <self._min_samples_leaf>
+        if temp_node.depth >= self._max_depth or len(temp_node.samples) <= self._min_samples_split:
+            # This node is a leaf node
+            return output_node
+
         # Make gini_left and gini_right instead of one gini value
         curr_best_split = {"feature": None, "splitting_criteria": None, "samples_left": None, "samples_right": None,
                            "gini_impurity": None}
@@ -95,20 +109,27 @@ class ClassificationTree(DecisionTree):
                     feature_boundaries, sorted_available_samples_target, num_classes)
                 if (curr_best_split["gini_impurity"] is None or curr_best_split["gini_impurity"]
                         > curr_feature_lowest_gini):
+                    # check if the split will violate the <self._min_samples_leaf> condition
+                    temp_samples_left = sorted_available_samples_indices[
+                        np.arange(len(sorted_available_samples_indices)) < curr_feature_best_split]
+                    temp_samples_right = sorted_available_samples_indices[
+                        np.arange(len(sorted_available_samples_indices)) > curr_feature_best_split]
+                    if len(temp_samples_left) < self._min_samples_leaf or len(temp_samples_right) < self._min_samples_leaf:
+                        continue
                     curr_best_split["feature"] = feature_name
                     curr_best_split["splitting_criteria"] = curr_feature_best_split
                     curr_best_split["gini_impurity"] = curr_feature_lowest_gini
-                    curr_best_split["samples_left"] = sorted_available_samples_indices[
-                        np.arange(len(sorted_available_samples_indices)) < curr_feature_best_split]
-                    curr_best_split["samples_left"] = sorted_available_samples_indices[
-                        np.arange(len(sorted_available_samples_indices)) > curr_feature_best_split]
+                    curr_best_split["samples_left"] = temp_samples_left
+                    curr_best_split["samples_right"] = temp_samples_right
 
-        # Figure out if temp_node stays as a leaf node or it splits
+        # Figure out if temp_node stays as a leaf node, or it splits
+        if curr_best_split["gini_impurity"] is not None:  # there was at least one possible split
+            output_node.feature = curr_best_split["feature"]
+            output_node.splitting_criteria = curr_best_split["splitting_criteria"]
+            output_node.left = ClassificationNode(output_node.depth + 1, curr_best_split["samples_left"])
+            output_node.right = ClassificationNode(output_node.depth + 1, curr_best_split["samples_right"])
 
-
-
-
-        pass
+        return output_node
 
     @classmethod
     def find_best_feature_split(cls, feature_boundaries: np.ndarray, sorted_available_samples_target: np.ndarray,
@@ -142,7 +163,6 @@ class ClassificationTree(DecisionTree):
         return lowest_gini_curr, best_split_curr
 
 
-
 class RegressionTree(DecisionTree):
     """
 
@@ -151,5 +171,6 @@ class RegressionTree(DecisionTree):
     def create_node(self, depth: int, samples: np.ndarray) -> RegressionNode:
         return RegressionNode(depth, samples)
 
-    def decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode) -> RegressionNode:
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
+                          indices_of_sorted_features_dict: dict[str, np.ndarray]) -> RegressionNode:
         pass
