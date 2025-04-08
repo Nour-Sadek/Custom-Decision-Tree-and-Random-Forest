@@ -9,7 +9,6 @@ class DecisionTreeNode:
     _feature: str
     _splitting_criteria: float
     _samples: np.ndarray
-    _num_samples: int
     _depth: int
     _right: "DecisionTreeNode"
     _left: "DecisionTreeNode"
@@ -26,7 +25,6 @@ class DecisionTreeNode:
         self._splitting_criteria = None
         self._depth = depth
         self._samples = samples
-        self._num_samples = len(samples)
 
     @property
     def feature(self) -> str:
@@ -51,6 +49,36 @@ class DecisionTreeNode:
     @property
     def samples(self) -> np.ndarray:
         return self._samples
+
+    @feature.setter
+    def feature(self, feature_name: str) -> None:
+        if not isinstance(feature_name, str):
+            raise ValueError("feature must be a string")
+        self._feature = feature_name
+
+    @splitting_criteria.setter
+    def splitting_criteria(self, splitting_criteria: float) -> None:
+        if not isinstance(splitting_criteria, float):
+            raise ValueError("splitting criteria must be a float")
+        self._splitting_criteria = splitting_criteria
+
+    @left.setter
+    def left(self, left: "DecisionTreeNode") -> None:
+        if not isinstance(left, DecisionTreeNode):
+            raise ValueError("left node must be an instance from the class DecisionTreeNode")
+        self._left = left
+
+    @right.setter
+    def right(self, right: "DecisionTreeNode") -> None:
+        if not isinstance(right, DecisionTreeNode):
+            raise ValueError("left node must be an instance from the class DecisionTreeNode")
+        self._right = right
+
+    @samples.setter
+    def samples(self, samples: np.ndarray) -> None:
+        if samples.ndim != 1 or not np.issubdtype(samples.dtype, np.integer):
+            raise ValueError("samples should be a one-dimensional numpy array that only contains integers")
+        self._samples = samples
 
 
 class RegressionNode(DecisionTreeNode):
@@ -131,9 +159,9 @@ class ClassificationNode(DecisionTreeNode):
         self._gini_impurity = gini_impurity
         self._distribution = probability_of_classes
 
-    def determine_gini_impurity_and_distribution(self, y: np.ndarray, num_classes: int) -> tuple[float, np.ndarray]:
+    @classmethod
+    def determine_gini_impurity_and_distribution(cls, y: np.ndarray, num_classes: int) -> tuple[float, np.ndarray]:
 
-        # Determine <self._distribution> and <self._gini_impurity> based on <y>
         temp_distribution = []
         gini_impurity = 1
         for classification in range(num_classes):
