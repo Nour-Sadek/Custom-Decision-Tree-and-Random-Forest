@@ -12,6 +12,7 @@ class DecisionTree:
     _min_samples_split: int
     _min_samples_leaf: int
     _max_features: int
+    _features_names: np.ndarray
 
     def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
                  min_samples_leaf: int = 1, max_features: int = None) -> None:
@@ -21,6 +22,7 @@ class DecisionTree:
         self._min_samples_split = min_samples_split
         self._min_samples_leaf = min_samples_leaf
         self._max_features = max_features
+        self._features_names = None
 
     @classmethod
     def sorted_feature_indices(cls, X: np.ndarray, feature_names: np.ndarray) -> dict[str, np.ndarray]:
@@ -60,9 +62,11 @@ class ClassificationTree(DecisionTree):
         """Create and traverse the tree."""
         if feature_names is None:
             # Let feature names be x[0], x[1], etc
-            feature_names = np.array([f"x[{i}]" for i in range(X_train.shape[1])])
+            self._features_names = np.array([f"x[{i}]" for i in range(X_train.shape[1])])
+        else:
+            self._features_names = feature_names
 
-        indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, feature_names)
+        indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, self._features_names)
         self._root = ClassificationNode(0, np.arange(y_train.shape[0]))
         return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
 
@@ -131,6 +135,32 @@ class ClassificationTree(DecisionTree):
 
         return output_node
 
+    def predict(self, X_test: np.ndarray) -> np.ndarray:
+
+        # Check if the features present in <X_test> have been trained on by the model
+        if X_test.shape[1] != self._features_names.shape:
+            raise ValueError("The given dataset does not have the same number of features as the data set that the "
+                             "current model has been trained on.")
+
+        # Predict the classifications
+        predictions = np.zeros(X_test.shape[0])
+        for index, row in enumerate(X_test):
+            curr = self._root
+            while curr is not None:
+                if curr.splitting_criteria is None:
+                    predictions[index] = curr.prediction
+                    curr = None
+                else:
+                    curr_feature = curr.feature
+                    feature_index = np.where(self._features_names == curr_feature)[0][0]
+                    feature_value = row[feature_index]
+                    if feature_value < curr.splitting_criteria:
+                        curr = curr.left
+                    else:
+                        curr = curr.right
+
+        return predictions
+
     @classmethod
     def find_best_feature_split(cls, feature_boundaries: np.ndarray, sorted_available_samples_target: np.ndarray,
                                 num_classes: int) -> tuple[float, float]:
@@ -170,9 +200,6 @@ class RegressionTree(DecisionTree):
     """
 
     """
-
-    def create_node(self, depth: int, samples: np.ndarray) -> RegressionNode:
-        return RegressionNode(depth, samples)
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
                            indices_of_sorted_features_dict: dict[str, np.ndarray]) -> RegressionNode:
