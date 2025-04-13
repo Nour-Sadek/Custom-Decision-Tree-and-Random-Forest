@@ -46,23 +46,8 @@ class DecisionTree:
         boundaries = np.where(feature[:-1] != feature[1:])[0]
         return boundaries + 0.5
 
-    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
-                          indices_of_sorted_features_dict: dict[str, np.ndarray]) -> DecisionTreeNode:
-        """<temp_node> is a leaf node. Decide whether it stays as a leaf node or it branches out."""
-        pass
-
-    def create_node(self, depth: int, samples: np.ndarray) -> DecisionTreeNode:
-        pass
-
     def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
-
-        if feature_names is None:
-            # Let feature names be x[0], x[1], etc
-            feature_names = np.array([f"x[{i}]" for i in range(X_train.shape[1])])
-
-        indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, feature_names)
-
-        # self._root = self.create_node(0, np.arange(y_train.shape[0]))
+        """Should not be used on its own but only its children classes"""
         pass
 
 
@@ -71,11 +56,25 @@ class ClassificationTree(DecisionTree):
 
     """
 
-    def create_node(self, depth: int, samples: np.ndarray) -> ClassificationNode:
-        return ClassificationNode(depth, samples)
+    def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
+        """Create and traverse the tree."""
+        if feature_names is None:
+            # Let feature names be x[0], x[1], etc
+            feature_names = np.array([f"x[{i}]" for i in range(X_train.shape[1])])
+
+        indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, feature_names)
+        self._root = ClassificationNode(0, np.arange(y_train.shape[0]))
+        return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
+
+    def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+        if node is not None:
+            node = self._decide_node_value(X, y, node, num_classes, indices_of_sorted_features_dict)
+            self._fit_helper(X, y, node.left, num_classes, indices_of_sorted_features_dict)
+            self._fit_helper(X, y, node.right, num_classes, indices_of_sorted_features_dict)
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
-                          indices_of_sorted_features_dict: dict[str, np.ndarray]) -> ClassificationNode:
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> ClassificationNode:
 
         gini_impurity, distribution = ClassificationNode.determine_gini_impurity_and_distribution(y, num_classes)
         output_node = ClassificationNode(temp_node.depth, temp_node.samples)
@@ -101,7 +100,7 @@ class ClassificationTree(DecisionTree):
             sorted_available_samples_target = y[sorted_available_samples_indices]
 
             # Divide up the features column
-            feature_boundaries = self.sorted_feature_boundaries(sorted_available_samples)
+            feature_boundaries = DecisionTree.sorted_feature_boundaries(sorted_available_samples)
             if feature_boundaries is None:
                 continue
             else:
@@ -114,7 +113,8 @@ class ClassificationTree(DecisionTree):
                         np.arange(len(sorted_available_samples_indices)) < curr_feature_best_split]
                     temp_samples_right = sorted_available_samples_indices[
                         np.arange(len(sorted_available_samples_indices)) > curr_feature_best_split]
-                    if len(temp_samples_left) < self._min_samples_leaf or len(temp_samples_right) < self._min_samples_leaf:
+                    if len(temp_samples_left) < self._min_samples_leaf or len(
+                            temp_samples_right) < self._min_samples_leaf:
                         continue
                     curr_best_split["feature"] = feature_name
                     curr_best_split["splitting_criteria"] = curr_feature_best_split
@@ -141,16 +141,19 @@ class ClassificationTree(DecisionTree):
         for boundary in feature_boundaries:
 
             # Get all elements with indices less than the boundary, then greater than the boundary
-            targets_for_samples_less = sorted_available_samples_target[np.arange(len(sorted_available_samples_target)) < boundary]
-            targets_for_samples_greater = sorted_available_samples_target[np.arange(len(sorted_available_samples_target)) > boundary]
+            targets_for_samples_less = sorted_available_samples_target[
+                np.arange(len(sorted_available_samples_target)) < boundary]
+            targets_for_samples_greater = sorted_available_samples_target[
+                np.arange(len(sorted_available_samples_target)) > boundary]
 
             # Find Total Gini Impurity which is the weighted average of leaf impurities
-            gini_impurity_left = ClassificationNode.determine_gini_impurity_and_distribution(targets_for_samples_less, num_classes)[0]
+            gini_impurity_left = \
+                ClassificationNode.determine_gini_impurity_and_distribution(targets_for_samples_less, num_classes)[0]
             weighted_gini_impurity_left = (len(targets_for_samples_less) / len(
                 sorted_available_samples_target)) * gini_impurity_left
 
             gini_impurity_right = \
-            ClassificationNode.determine_gini_impurity_and_distribution(targets_for_samples_greater, num_classes)[0]
+                ClassificationNode.determine_gini_impurity_and_distribution(targets_for_samples_greater, num_classes)[0]
             weighted_gini_impurity_right = (len(targets_for_samples_greater) / len(
                 sorted_available_samples_target)) * gini_impurity_right
 
@@ -172,5 +175,5 @@ class RegressionTree(DecisionTree):
         return RegressionNode(depth, samples)
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
-                          indices_of_sorted_features_dict: dict[str, np.ndarray]) -> RegressionNode:
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> RegressionNode:
         pass
