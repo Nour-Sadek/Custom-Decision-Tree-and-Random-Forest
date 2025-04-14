@@ -29,7 +29,7 @@ class DecisionTree:
         """Return the array of indices that would sort <feature>."""
         indices_of_sorted_features_dict = {}
         for feature_name, features_column in zip(feature_names, X.T):
-            indices_of_sorted_features_dict[feature_name] = np.argsort(features_column)
+            indices_of_sorted_features_dict[str(feature_name)] = np.argsort(features_column)
         return indices_of_sorted_features_dict
 
     @classmethod
@@ -70,33 +70,37 @@ class ClassificationTree(DecisionTree):
         self._root = ClassificationNode(0, np.arange(y_train.shape[0]))
         return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
 
-    def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
+    def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: ClassificationNode, num_classes: int,
                            indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
         if node is not None:
-            node = self._decide_node_value(X, y, node, num_classes, indices_of_sorted_features_dict)
+            self._decide_node_value(X, y, node, num_classes, indices_of_sorted_features_dict)
             self._fit_helper(X, y, node.left, num_classes, indices_of_sorted_features_dict)
             self._fit_helper(X, y, node.right, num_classes, indices_of_sorted_features_dict)
 
-    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
-                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> ClassificationNode:
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: ClassificationNode, num_classes: int,
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
 
-        gini_impurity, distribution = ClassificationNode.determine_gini_impurity_and_distribution(y, num_classes)
-        output_node = ClassificationNode(temp_node.depth, temp_node.samples)
-        output_node.set_properties(gini_impurity, distribution)
+        available_samples = node.samples
+        gini_impurity, distribution = ClassificationNode.determine_gini_impurity_and_distribution(y[available_samples],
+                                                                                                  num_classes)
+        node.set_properties(gini_impurity, distribution)
 
         # Check if further splits can be made based on <self._max_depth>, <self._min_samples_split> or
         # <self._min_samples_leaf>
-        if temp_node.depth >= self._max_depth or len(temp_node.samples) <= self._min_samples_split:
+        if node.depth >= self._max_depth or len(node.samples) <= self._min_samples_split:
             # This node is a leaf node
-            return output_node
+            return
 
         # Make gini_left and gini_right instead of one gini value
         curr_best_split = {"feature": None, "splitting_criteria": None, "samples_left": None, "samples_right": None,
                            "gini_impurity": None}
 
+        # If the samples in the node are all the same, no need to further split
+        if np.all(y[available_samples] == y[available_samples][0]):
+            return
+
         for feature_name, features_column in zip(indices_of_sorted_features_dict.keys(), X.T):
             # Get the features column of only the remaining (available) samples in sorted order
-            available_samples = temp_node.samples
             sorted_features_indices = indices_of_sorted_features_dict[feature_name]
             sorted_available_samples_indices = sorted_features_indices[np.isin(sorted_features_indices,
                                                                                available_samples)]
@@ -113,37 +117,33 @@ class ClassificationTree(DecisionTree):
                 if (curr_best_split["gini_impurity"] is None or curr_best_split["gini_impurity"]
                         > curr_feature_lowest_gini):
                     # check if the split will violate the <self._min_samples_leaf> condition
-                    temp_samples_left = sorted_available_samples_indices[
-                        np.arange(len(sorted_available_samples_indices)) < curr_feature_best_split]
-                    temp_samples_right = sorted_available_samples_indices[
-                        np.arange(len(sorted_available_samples_indices)) > curr_feature_best_split]
+                    temp_samples_left = sorted_available_samples_indices[:int(curr_feature_best_split) + 1]
+                    temp_samples_right = sorted_available_samples_indices[int(curr_feature_best_split) + 1:]
                     if len(temp_samples_left) < self._min_samples_leaf or len(
                             temp_samples_right) < self._min_samples_leaf:
                         continue
                     curr_best_split["feature"] = feature_name
-                    curr_best_split["splitting_criteria"] = curr_feature_best_split
+                    curr_best_split["splitting_criteria"] = (sorted_available_samples[int(curr_feature_best_split)] + sorted_available_samples[int(curr_feature_best_split) + 1]) / 2
                     curr_best_split["gini_impurity"] = curr_feature_lowest_gini
                     curr_best_split["samples_left"] = temp_samples_left
                     curr_best_split["samples_right"] = temp_samples_right
 
         # Figure out if temp_node stays as a leaf node, or it splits
         if curr_best_split["gini_impurity"] is not None:  # there was at least one possible split
-            output_node.feature = curr_best_split["feature"]
-            output_node.splitting_criteria = curr_best_split["splitting_criteria"]
-            output_node.left = ClassificationNode(output_node.depth + 1, curr_best_split["samples_left"])
-            output_node.right = ClassificationNode(output_node.depth + 1, curr_best_split["samples_right"])
-
-        return output_node
+            node.feature = curr_best_split["feature"]
+            node.splitting_criteria = curr_best_split["splitting_criteria"]
+            node.left = ClassificationNode(node.depth + 1, curr_best_split["samples_left"])
+            node.right = ClassificationNode(node.depth + 1, curr_best_split["samples_right"])
 
     def predict(self, X_test: np.ndarray) -> np.ndarray:
 
         # Check if the features present in <X_test> have been trained on by the model
-        if X_test.shape[1] != self._features_names.shape:
+        if X_test.shape[1] != self._features_names.shape[0]:
             raise ValueError("The given dataset does not have the same number of features as the data set that the "
                              "current model has been trained on.")
 
         # Predict the classifications
-        predictions = np.zeros(X_test.shape[0])
+        predictions = np.ones(X_test.shape[0]) * -1
         for index, row in enumerate(X_test):
             curr = self._root
             while curr is not None:
@@ -158,7 +158,6 @@ class ClassificationTree(DecisionTree):
                         curr = curr.left
                     else:
                         curr = curr.right
-
         return predictions
 
     @classmethod
