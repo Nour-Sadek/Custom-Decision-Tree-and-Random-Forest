@@ -49,16 +49,6 @@ class DecisionTree:
         return boundaries + 0.5
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
-        """Should not be used on its own but only its children classes"""
-        pass
-
-
-class ClassificationTree(DecisionTree):
-    """
-
-    """
-
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
         """Create and traverse the tree."""
         if feature_names is None:
             # Let feature names be x[0], x[1], etc
@@ -67,15 +57,59 @@ class ClassificationTree(DecisionTree):
             self._features_names = feature_names
 
         indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, self._features_names)
-        self._root = ClassificationNode(0, np.arange(y_train.shape[0]))
-        return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
+        self._root.samples = np.arange(y_train.shape[0])
+        if (isinstance(self._root, ClassificationNode)):
+            return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
+        else:
+            return self._fit_helper(X_train, y_train, self._root, None, indices_of_sorted_features_dict)
 
-    def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: ClassificationNode, num_classes: int,
-                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+    def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
+                    indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
         if node is not None:
             self._decide_node_value(X, y, node, num_classes, indices_of_sorted_features_dict)
             self._fit_helper(X, y, node.left, num_classes, indices_of_sorted_features_dict)
             self._fit_helper(X, y, node.right, num_classes, indices_of_sorted_features_dict)
+
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+        pass
+
+    def predict(self, X_test: np.ndarray) -> np.ndarray:
+
+        # Check if the features present in <X_test> have been trained on by the model
+        if X_test.shape[1] != self._features_names.shape[0]:
+            raise ValueError("The given dataset does not have the same number of features as the data set that the "
+                             "current model has been trained on.")
+
+        # Predict the classifications
+        predictions = np.ones(X_test.shape[0]) * -1
+        for index, row in enumerate(X_test):
+            curr = self._root
+            while curr is not None:
+                if curr.splitting_criteria is None:
+                    predictions[index] = curr.prediction
+                    curr = None
+                else:
+                    curr_feature = curr.feature
+                    feature_index = np.where(self._features_names == curr_feature)[0][0]
+                    feature_value = row[feature_index]
+                    if feature_value < curr.splitting_criteria:
+                        curr = curr.left
+                    else:
+                        curr = curr.right
+
+        return predictions
+
+
+class ClassificationTree(DecisionTree):
+    """
+
+    """
+
+    def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
+                 min_samples_leaf: int = 1, max_features: int = None) -> None:
+        super().__init__(max_depth, min_samples_split, min_samples_leaf, max_features)
+        self._root = ClassificationNode(0)
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: ClassificationNode, num_classes: int,
                            indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
@@ -87,7 +121,7 @@ class ClassificationTree(DecisionTree):
 
         # Check if further splits can be made based on <self._max_depth>, <self._min_samples_split> or
         # <self._min_samples_leaf>
-        if node.depth >= self._max_depth or len(node.samples) <= self._min_samples_split:
+        if node.depth >= self._max_depth or len(node.samples) < self._min_samples_split:
             # This node is a leaf node
             return
 
@@ -135,31 +169,6 @@ class ClassificationTree(DecisionTree):
             node.left = ClassificationNode(node.depth + 1, curr_best_split["samples_left"])
             node.right = ClassificationNode(node.depth + 1, curr_best_split["samples_right"])
 
-    def predict(self, X_test: np.ndarray) -> np.ndarray:
-
-        # Check if the features present in <X_test> have been trained on by the model
-        if X_test.shape[1] != self._features_names.shape[0]:
-            raise ValueError("The given dataset does not have the same number of features as the data set that the "
-                             "current model has been trained on.")
-
-        # Predict the classifications
-        predictions = np.ones(X_test.shape[0]) * -1
-        for index, row in enumerate(X_test):
-            curr = self._root
-            while curr is not None:
-                if curr.splitting_criteria is None:
-                    predictions[index] = curr.prediction
-                    curr = None
-                else:
-                    curr_feature = curr.feature
-                    feature_index = np.where(self._features_names == curr_feature)[0][0]
-                    feature_value = row[feature_index]
-                    if feature_value < curr.splitting_criteria:
-                        curr = curr.left
-                    else:
-                        curr = curr.right
-        return predictions
-
     @classmethod
     def find_best_feature_split(cls, feature_boundaries: np.ndarray, sorted_available_samples_target: np.ndarray,
                                 num_classes: int) -> tuple[float, float]:
@@ -200,6 +209,94 @@ class RegressionTree(DecisionTree):
 
     """
 
-    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, temp_node: DecisionTreeNode, num_classes: int,
-                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> RegressionNode:
-        pass
+    def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
+                 min_samples_leaf: int = 1, max_features: int = None) -> None:
+        super().__init__(max_depth, min_samples_split, min_samples_leaf, max_features)
+        self._root = RegressionNode(0)
+
+    def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: RegressionNode, num_classes: int,
+                           indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+
+        available_samples = node.samples
+        sum_squared_residuals, prediction = RegressionNode.determine_sum_squared_residuals_and_prediction(y[available_samples])
+        node.set_properties(sum_squared_residuals, prediction)
+
+        # Check if further splits can be made based on <self._max_depth>, <self._min_samples_split> or
+        # <self._min_samples_leaf>
+        if node.depth >= self._max_depth or len(node.samples) < self._min_samples_split:
+            # This node is a leaf node
+            return
+
+        # Make gini_left and gini_right instead of one gini value
+        curr_best_split = {"feature": None, "splitting_criteria": None, "samples_left": None, "samples_right": None,
+                           "sum_squared_residuals": None}
+
+        # If the samples in the node are all the same, no need to further split
+        if np.all(y[available_samples] == y[available_samples][0]):
+            return
+
+        for feature_name, features_column in zip(indices_of_sorted_features_dict.keys(), X.T):
+            # Get the features column of only the remaining (available) samples in sorted order
+            sorted_features_indices = indices_of_sorted_features_dict[feature_name]
+            sorted_available_samples_indices = sorted_features_indices[np.isin(sorted_features_indices,
+                                                                               available_samples)]
+            sorted_available_samples = features_column[sorted_available_samples_indices]
+            sorted_available_samples_target = y[sorted_available_samples_indices]
+
+            # Divide up the features column
+            feature_boundaries = DecisionTree.sorted_feature_boundaries(sorted_available_samples)
+            if feature_boundaries is None:
+                continue
+            else:
+                curr_feature_lowest_ssr, curr_feature_best_split = RegressionTree.find_best_feature_split(
+                    feature_boundaries, sorted_available_samples_target)
+                if (curr_best_split["sum_squared_residuals"] is None or curr_best_split["sum_squared_residuals"]
+                        > curr_feature_lowest_ssr):
+                    # check if the split will violate the <self._min_samples_leaf> condition
+                    temp_samples_left = sorted_available_samples_indices[:int(curr_feature_best_split) + 1]
+                    temp_samples_right = sorted_available_samples_indices[int(curr_feature_best_split) + 1:]
+                    if len(temp_samples_left) < self._min_samples_leaf or len(
+                            temp_samples_right) < self._min_samples_leaf:
+                        continue
+                    curr_best_split["feature"] = feature_name
+                    curr_best_split["splitting_criteria"] = (sorted_available_samples[int(curr_feature_best_split)] + sorted_available_samples[int(curr_feature_best_split) + 1]) / 2
+                    curr_best_split["sum_squared_residuals"] = curr_feature_lowest_ssr
+                    curr_best_split["samples_left"] = temp_samples_left
+                    curr_best_split["samples_right"] = temp_samples_right
+
+        # Figure out if temp_node stays as a leaf node, or it splits
+        if curr_best_split["sum_squared_residuals"] is not None:  # there was at least one possible split
+            node.feature = curr_best_split["feature"]
+            node.splitting_criteria = curr_best_split["splitting_criteria"]
+            node.left = RegressionNode(node.depth + 1, curr_best_split["samples_left"])
+            node.right = RegressionNode(node.depth + 1, curr_best_split["samples_right"])
+
+    @classmethod
+    def find_best_feature_split(cls, feature_boundaries: np.ndarray,
+                                sorted_available_samples_target: np.ndarray) -> tuple[float, float]:
+
+        lowest_ssr_curr = None
+        best_split_curr = None
+
+        for boundary in feature_boundaries:
+
+            # Get all elements with indices less than the boundary, then greater than the boundary
+            targets_for_samples_less = sorted_available_samples_target[
+                np.arange(len(sorted_available_samples_target)) < boundary]
+            targets_for_samples_greater = sorted_available_samples_target[
+                np.arange(len(sorted_available_samples_target)) > boundary]
+
+            # Find Total Sum of Squared Residuals
+            ssr_left = \
+                RegressionNode.determine_sum_squared_residuals_and_prediction(targets_for_samples_less)[0]
+
+            ssr_right = \
+                RegressionNode.determine_sum_squared_residuals_and_prediction(targets_for_samples_greater)[0]
+
+            total_ssr = ssr_left + ssr_right
+
+            if lowest_ssr_curr is None or lowest_ssr_curr > total_ssr:
+                lowest_ssr_curr = total_ssr
+                best_split_curr = boundary
+
+        return lowest_ssr_curr, best_split_curr
