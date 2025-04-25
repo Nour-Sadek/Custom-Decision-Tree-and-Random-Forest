@@ -13,7 +13,7 @@ class DecisionTreeNode:
     _right: "DecisionTreeNode"
     _left: "DecisionTreeNode"
 
-    def __init__(self, depth: int, samples: np.ndarray) -> None:
+    def __init__(self, depth: int, samples: np.ndarray = None) -> None:
         """Initialize a new <DecisionTreeNode> as a leaf first. Since it is a leaf, it doesn't have right or left nodes,
         and it does not represent a feature from which a branching decision is made.
         <samples> represents a list of indices from the original training dataset that this node contains.
@@ -112,7 +112,8 @@ class RegressionNode(DecisionTreeNode):
         self._prediction = prediction
         self._sum_squared_residuals = sum_squared_residuals
 
-    def determine_sum_squared_residuals_and_prediction(self, y: np.ndarray) -> tuple[float, float]:
+    @classmethod
+    def determine_sum_squared_residuals_and_prediction(cls, y: np.ndarray) -> tuple[float, float]:
         prediction = float(np.average(y))
         sum_squared_residuals = 0
         for observed in y:
@@ -137,27 +138,43 @@ class ClassificationNode(DecisionTreeNode):
          which is the class that has the highest probability. <y> is also used to determine <self._gini_impurity>, which
          is equal to 1 - (prob_class_0)^2 - (prob_class_1)^2 - etc.
         """
-        super().__init__(depth, samples)
         self._prediction = None
         self._distribution = None
         self._gini_impurity = None
+        super().__init__(depth, samples)
 
     @property
     def prediction(self) -> int:
         return self._prediction
 
     @property
-    def probability_of_classes(self) -> np.ndarray:
+    def distribution(self) -> np.ndarray:
         return self._distribution
 
     @property
     def gini_impurity(self) -> float:
         return self._gini_impurity
 
-    def set_properties(self, gini_impurity: float, probability_of_classes: np.ndarray) -> None:
-        self._prediction = int(np.argmax(probability_of_classes))
+    @prediction.setter
+    def prediction(self, prediction: int) -> None:
+        if not isinstance(prediction, int):
+            raise ValueError("the prediction must be an integer referring to a class")
+        self._prediction = prediction
+
+    @gini_impurity.setter
+    def gini_impurity(self, gini_impurity: float) -> None:
+        if not isinstance(gini_impurity, float):
+            raise ValueError("gini_impurity must be a float")
         self._gini_impurity = gini_impurity
-        self._distribution = probability_of_classes
+
+    @distribution.setter
+    def distribution(self, distribution: np.ndarray) -> None:
+        self._distribution = distribution
+
+    def set_properties(self, gini_impurity: float, distribution: np.ndarray) -> None:
+        self._prediction = int(np.argmax(distribution))
+        self._gini_impurity = gini_impurity
+        self._distribution = distribution
 
     @classmethod
     def determine_gini_impurity_and_distribution(cls, y: np.ndarray, num_classes: int) -> tuple[float, np.ndarray]:
