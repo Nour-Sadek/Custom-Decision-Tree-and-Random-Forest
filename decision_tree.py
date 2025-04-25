@@ -24,6 +24,10 @@ class DecisionTree:
         self._max_features = max_features
         self._features_names = None
 
+    @property
+    def root(self) -> DecisionTreeNode:
+        return self._root
+
     @classmethod
     def sorted_feature_indices(cls, X: np.ndarray, feature_names: np.ndarray) -> dict[str, np.ndarray]:
         """Return the array of indices that would sort <feature>."""
@@ -99,6 +103,26 @@ class DecisionTree:
                         curr = curr.right
 
         return predictions
+
+    def print_tree(self, node: DecisionTreeNode, prefix="", is_left=True):
+        if node is None:
+            return
+
+        # Prefix for current node
+        connector = "└── " if not is_left else "├── "
+        print(prefix + connector + self.format_node(node))
+
+        # Update the prefix for children
+        if node.left or node.right:
+            # Extend the branch for the left child
+            if node.left:
+                self.print_tree(node.left, prefix + ("│   " if is_left else "    "), is_left=True)
+            # Extend the branch for the right child
+            if node.right:
+                self.print_tree(node.right, prefix + ("│   " if is_left else "    "), is_left=False)
+
+    def format_node(self, node: DecisionTreeNode) -> str:
+        pass
 
 
 class ClassificationTree(DecisionTree):
@@ -203,6 +227,14 @@ class ClassificationTree(DecisionTree):
 
         return lowest_gini_curr, best_split_curr
 
+    def format_node(self, node: ClassificationNode) -> str:
+        if node.feature is None:
+            return f"Leaf(prediction={node.prediction}, samples={len(node.samples)})"
+        else:
+            return (f"Node(feature: {node.feature}, threshold: {node.splitting_criteria:.4f}, "
+                    f"gini={node.gini_impurity:.4f}, samples={len(node.samples)}, "
+                    f"prediction={node.prediction})")
+
 
 class RegressionTree(DecisionTree):
     """
@@ -300,3 +332,12 @@ class RegressionTree(DecisionTree):
                 best_split_curr = boundary
 
         return lowest_ssr_curr, best_split_curr
+
+    @classmethod
+    def format_node(cls, node: RegressionNode) -> str:
+        if node.feature is None:
+            return f"Leaf(prediction={node.prediction}, samples={len(node.samples)})"
+        else:
+            return (f"Node(feature: {node.feature}, threshold: {node.splitting_criteria:.4f}, "
+                    f"sum squared residuals={node.sum_squared_residuals:.4f}, samples={len(node.samples)}, "
+                    f"prediction={node.prediction:.4f})")
