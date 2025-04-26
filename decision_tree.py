@@ -1,11 +1,11 @@
 import numpy as np
+import random
 from decision_tree_node import *
 
 
 class DecisionTree:
-    """
-
-    """
+    """A custom Decision Tree classifier that acts as a base class for the ClassificationTree and
+    RegressionTree classes"""
 
     _root: DecisionTreeNode
     _max_depth: int
@@ -16,7 +16,21 @@ class DecisionTree:
 
     def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
                  min_samples_leaf: int = 1, max_features: int = None) -> None:
-        # check of min_samples_split is greater than min_samples_leaf
+        """Initialize a new DecisionTree instance with _max_depth <max_depth>, _min_samples_split <min_samples_split>,
+        _min_samples_leaf <min_samples_leaf>, and max_features <max_features>.
+
+        This class is never expected to be called directly.
+
+        - max_depth represents the max depth of the created tree where branching will stop for the node that reaches
+        <max_depth>.
+        - min_samples_leaf represents the minimum number of samples that a leaf should have where branching will not
+        happen if it leads to nodes that have less than <min_samples_leaf>.
+        - min_samples_split represents the minimum number of samples that a node is required to have to be able to be
+        further split into leaf nodes; if a node has samples less than <min_samples_leaf>, it will be labelled as a leaf
+        node and no further splits will be made.
+        - max_features represents the maximum number of features that will be used when deciding to split the node. If
+        <max_features> is None, then all the features will be considered at every split.
+        """
         self._root = None
         self._max_depth = max_depth
         self._min_samples_split = min_samples_split
@@ -53,7 +67,7 @@ class DecisionTree:
         return boundaries + 0.5
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
-        """Create and traverse the tree."""
+        """Create the decision tree based on <X_train> and <y_train>."""
         if feature_names is None:
             # Let feature names be x[0], x[1], etc
             self._features_names = np.array([f"x[{i}]" for i in range(X_train.shape[1])])
@@ -63,12 +77,14 @@ class DecisionTree:
         indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, self._features_names)
         self._root.samples = np.arange(y_train.shape[0])
         if (isinstance(self._root, ClassificationNode)):
-            return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)), indices_of_sorted_features_dict)
+            return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)),
+                                    indices_of_sorted_features_dict)
         else:
             return self._fit_helper(X_train, y_train, self._root, None, indices_of_sorted_features_dict)
 
     def _fit_helper(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
                     indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+        """Helper method for <self.fit> where it allows the recursive creation of the tree."""
         if node is not None:
             self._decide_node_value(X, y, node, num_classes, indices_of_sorted_features_dict)
             self._fit_helper(X, y, node.left, num_classes, indices_of_sorted_features_dict)
@@ -76,9 +92,18 @@ class DecisionTree:
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: DecisionTreeNode, num_classes: int,
                            indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
+        """Decide the node value of <node> during training after the <self.fit> function call. It decides based on the
+        <X> and <y> training datasets and the values currently stored in <node> which refer to the available samples on
+        which the splitting will be decided on and a dictionary <indices_of_sorted_feature_dict> that stores information
+        about how each feature's values are sorted."""
         pass
 
     def predict(self, X_test: np.ndarray) -> np.ndarray:
+        """Return a 1D array assigning predictions for the observations in <X_test> of shape nb_observations x
+        nb_features by traversing the tree that has been created during training and assigning the predicted value that
+        is stored in the leaf node that is reached upon full traversal.
+        This function is expected to be called only after training.
+        """
 
         # Check if the features present in <X_test> have been trained on by the model
         if X_test.shape[1] != self._features_names.shape[0]:
@@ -105,6 +130,8 @@ class DecisionTree:
         return predictions
 
     def print_tree(self, node: DecisionTreeNode, prefix="", is_left=True):
+        """Print the tree out onto the console as a way to visualize the tree that has been created during training.
+        This function is only expected to be called after training."""
         if node is None:
             return
 
@@ -122,22 +149,29 @@ class DecisionTree:
                 self.print_tree(node.right, prefix + ("│   " if is_left else "    "), is_left=False)
 
     def format_node(self, node: DecisionTreeNode) -> str:
+        """Return a string that represents the information that will be displayed for the node when printing out the
+        tree after calling <self.print_tree>. It will include gini impurity for ClassificationTree and squared error
+        for Regression Tree for inner nodes.
+
+        Common information that will be printed out for both trees are:
+        - For inner nodes: the feature and splitting criteria, the number of samples, and the prediction of that node.
+        - For leaf nodes: the number of samples and the prediction."""
         pass
 
 
 class ClassificationTree(DecisionTree):
-    """
-
-    """
+    """A custom Classification Tree classifier."""
 
     def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
                  min_samples_leaf: int = 1, max_features: int = None) -> None:
+        """Initialize a new ClassificationTree instance with _max_depth <max_depth>, _min_samples_split
+        <min_samples_split>, _min_samples_leaf <min_samples_leaf>, and max_features <max_features>. The root of the
+        tree is created to be an instance of the ClassificationNode class."""
         super().__init__(max_depth, min_samples_split, min_samples_leaf, max_features)
         self._root = ClassificationNode(0)
 
     def _decide_node_value(self, X: np.ndarray, y: np.ndarray, node: ClassificationNode, num_classes: int,
                            indices_of_sorted_features_dict: dict[str, np.ndarray]) -> None:
-
         available_samples = node.samples
         gini_impurity, distribution = ClassificationNode.determine_gini_impurity_and_distribution(y[available_samples],
                                                                                                   num_classes)
@@ -157,7 +191,12 @@ class ClassificationTree(DecisionTree):
         if np.all(y[available_samples] == y[available_samples][0]):
             return
 
-        for feature_name, features_column in zip(indices_of_sorted_features_dict.keys(), X.T):
+        curr_random_features = list(indices_of_sorted_features_dict.keys())
+        # Choose the features to consider randomly if _max_features is not None and is less than the provided features
+        if self._max_features is not None and self._max_features < X.shape[1]:
+            curr_random_features = random.sample(curr_random_features, self._max_features)
+
+        for feature_name, features_column in zip(curr_random_features, X.T):
             # Get the features column of only the remaining (available) samples in sorted order
             sorted_features_indices = indices_of_sorted_features_dict[feature_name]
             sorted_available_samples_indices = sorted_features_indices[np.isin(sorted_features_indices,
@@ -196,6 +235,12 @@ class ClassificationTree(DecisionTree):
     @classmethod
     def find_best_feature_split(cls, feature_boundaries: np.ndarray, sorted_available_samples_target: np.ndarray,
                                 num_classes: int) -> tuple[float, float]:
+        """Return the best splitting criteria and its corresponding gini impurity value, which should be the lowest
+        possible out of all the possible splits that can be done. This is done based on the <feature_boundaries> that
+        stores the indices of the possible boundaries that can be considered and the <sorted_available_samples_target>
+        that store the target values for the samples sorted based on the values of the current feature.
+
+        Return None for both if there is no possible split for the samples considered."""
 
         lowest_gini_curr = None
         best_split_curr = None
@@ -231,18 +276,19 @@ class ClassificationTree(DecisionTree):
         if node.feature is None:
             return f"Leaf(prediction={node.prediction}, samples={len(node.samples)})"
         else:
-            return (f"Node(feature: {node.feature}, threshold: {node.splitting_criteria:.4f}, "
-                    f"gini={node.gini_impurity:.4f}, samples={len(node.samples)}, "
+            return (f"Node({node.feature} <= {node.splitting_criteria:.3f}, "
+                    f"gini={node.gini_impurity:.3f}, samples={len(node.samples)}, "
                     f"prediction={node.prediction})")
 
 
 class RegressionTree(DecisionTree):
-    """
-
-    """
+    """A custom Regression Tree classifier."""
 
     def __init__(self, max_depth: int = 30, min_samples_split: int = 2,
                  min_samples_leaf: int = 1, max_features: int = None) -> None:
+        """Initialize a new ClassificationTree instance with _max_depth <max_depth>, _min_samples_split
+        <min_samples_split>, _min_samples_leaf <min_samples_leaf>, and max_features <max_features>. The root of the
+        tree is created to be an instance of the RegressionNode class."""
         super().__init__(max_depth, min_samples_split, min_samples_leaf, max_features)
         self._root = RegressionNode(0)
 
@@ -267,7 +313,12 @@ class RegressionTree(DecisionTree):
         if np.all(y[available_samples] == y[available_samples][0]):
             return
 
-        for feature_name, features_column in zip(indices_of_sorted_features_dict.keys(), X.T):
+        curr_random_features = list(indices_of_sorted_features_dict.keys())
+        # Choose the features to consider randomly if _max_features is not None and is less than the provided features
+        if self._max_features is not None and self._max_features < X.shape[1]:
+            curr_random_features = random.sample(curr_random_features, self._max_features)
+
+        for feature_name, features_column in zip(curr_random_features, X.T):
             # Get the features column of only the remaining (available) samples in sorted order
             sorted_features_indices = indices_of_sorted_features_dict[feature_name]
             sorted_available_samples_indices = sorted_features_indices[np.isin(sorted_features_indices,
@@ -306,6 +357,13 @@ class RegressionTree(DecisionTree):
     @classmethod
     def find_best_feature_split(cls, feature_boundaries: np.ndarray,
                                 sorted_available_samples_target: np.ndarray) -> tuple[float, float]:
+        """Return the best splitting criteria and its corresponding sum squared residual value, which should be the
+        lowest possible out of all the possible splits that can be done. This is done based on the <feature_boundaries>
+        that stores the indices of the possible boundaries that can be considered and the
+        <sorted_available_samples_target> that store the target values for the samples sorted based on the values of the
+        current feature.
+
+        Return None for both if there is no possible split for the samples considered."""
 
         lowest_ssr_curr = None
         best_split_curr = None
@@ -338,6 +396,6 @@ class RegressionTree(DecisionTree):
         if node.feature is None:
             return f"Leaf(prediction={node.prediction}, samples={len(node.samples)})"
         else:
-            return (f"Node(feature: {node.feature}, threshold: {node.splitting_criteria:.4f}, "
-                    f"sum squared residuals={node.sum_squared_residuals:.4f}, samples={len(node.samples)}, "
-                    f"prediction={node.prediction:.4f})")
+            return (f"Node({node.feature} <= {node.splitting_criteria:.3f}, "
+                    f"squared_error={node.sum_squared_residuals / len(node.samples):.3f}, samples={len(node.samples)}, "
+                    f"prediction={node.prediction:.3f})")
