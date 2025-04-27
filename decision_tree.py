@@ -66,7 +66,8 @@ class DecisionTree:
         boundaries = np.where(feature[:-1] != feature[1:])[0]
         return boundaries + 0.5
 
-    def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None) -> None:
+    def fit(self, X_train: np.ndarray, y_train: np.ndarray, feature_names: np.ndarray = None,
+            samples: np.ndarray = None) -> None:
         """Create the decision tree based on <X_train> and <y_train>."""
         if feature_names is None:
             # Let feature names be x[0], x[1], etc
@@ -75,7 +76,10 @@ class DecisionTree:
             self._features_names = feature_names
 
         indices_of_sorted_features_dict = self.sorted_feature_indices(X_train, self._features_names)
-        self._root.samples = np.arange(y_train.shape[0])
+        if samples is None:
+            self._root.samples = np.arange(y_train.shape[0])
+        else:
+            self._root.samples = samples
         if (isinstance(self._root, ClassificationNode)):
             return self._fit_helper(X_train, y_train, self._root, len(np.unique(y_train)),
                                     indices_of_sorted_features_dict)
