@@ -50,7 +50,7 @@ to the parameter random_state=20.
 The accuracy on the training dataset was indeed 100%, and on the test set it was 88.89%.
 
 This was the Classification Decision Tree that was generated:
-![Image](https://github.com/user-attachments/assets/a7b0eed9-ada6-405e-b25a-ef1fa1cd1ae2)
+![Image](https://github.com/user-attachments/assets/2f471f2c-9d1d-40ff-934c-5a890589720b)
 
 #### Regression Decision Tree
 sklearn.tree.DecisionTreeRegressor was used to fit the model to the training data using the default settings, in addition 
@@ -59,7 +59,7 @@ to the parameter random_state=20.
 The accuracy on the training dataset was indeed 100%, and on the test set it was 84.19%.
 
 This was the Regression Decision Tree that was generated:
-![Image](https://github.com/user-attachments/assets/da6b7463-563a-4ac3-beb6-dbb50f92d878)
+![Image](https://github.com/user-attachments/assets/8a508f2a-cc31-4950-bbf4-f045b106ff28)
 
 ### Training the wine dataset using the Custom implementation of Random Forest for Classification
 The custom Random Forest for Classification has been trained on the training set of the wine dataset using the default 
