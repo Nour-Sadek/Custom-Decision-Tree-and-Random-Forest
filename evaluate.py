@@ -51,7 +51,7 @@ custom_accuracy_class_train = round(float(comparison_train.sum() / y_train.size)
 print(f"Accuracy of the Custom Classification Decision Tree on the train dataset: {custom_accuracy_class_train}%\n")
 
 """Output of the custom model using Regression Tree"""
-custom_regression_tree = RegressionTree(max_depth=100)
+custom_regression_tree = RegressionTree()
 custom_regression_tree.fit(X_train, y_train)
 
 # Print out the Regression Tree that was trained, which should fit the training data perfectly
